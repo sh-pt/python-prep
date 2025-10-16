@@ -29,7 +29,7 @@ class MyAsyncMapper:
             raise TypeError("Args need to be list, tuple or dict, and foo() only takes 2 inputs")
 
         results = []
-        for future in concurrent.futures.as_completed(futures):
+        for future in futures:
             try:
                 results.append(future.result())
             except Exception as e:
