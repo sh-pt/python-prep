@@ -1,29 +1,32 @@
 import time
 import concurrent.futures
 
+
 class MyAsyncMapper:
     def __init__(self, max_workers):
         self.max_workers = max_workers
-        self.executor = None # save time, only create executor when WITH starts
+        self.executor = None  # save time, only create executor when WITH starts
 
     def __enter__(self):
         self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers)
-        return self # return for WITH ... AS ... mapper to assign mapper
+        return self  # return for WITH ... AS ... mapper to assign mapper
 
-    def __exit__(self, exc_type, exc_val, exc_tb): # even not used, need to keep type val and tb
+    def __exit__(self, exc_type, exc_val, exc_tb):  # even not used, need to keep type val and tb
         if self.executor:
-            self.executor.shutdown(wait=True) # make sure all process finished
+            self.executor.shutdown(wait=True)  # make sure all process finished
 
     def map(self, func, args):
         futures = []
-        if type(args) in (list, tuple):
+        if isinstance(args, (tuple, list)):
             for arg in args:
-                futures.append(self.executor.submit(func, *arg))
-        elif type(args) == dict:
-            for kwarg in args.values():
-                futures.append(self.executor.submit(func, **kwarg))
+                if isinstance(arg, dict):
+                    futures.append(self.executor.submit(func, **arg))
+                else:
+                    futures.append(self.executor.submit(func, *arg))
+        elif isinstance(args, dict):
+            futures.append(self.executor.submit(func, **args))
         else:
-            raise TypeError("Args need to be list, tuple or dict")
+            raise TypeError("Args need to be list, tuple or dict, and foo() only takes 2 inputs")
 
         results = []
         for future in concurrent.futures.as_completed(futures):
@@ -32,6 +35,7 @@ class MyAsyncMapper:
             except Exception as e:
                 results.append(e)
         return results
+
 
 def foo(x, y):
     time.sleep(1)
@@ -47,4 +51,4 @@ if __name__ == "__main__":
         ans = mapper.map(foo, inputs)
         end = time.perf_counter()
         print(f'Results: {ans}')
-        print(f'Time taken: {round(end - start,2)} seconds')
+        print(f'Time taken: {round(end - start, 2)} seconds')
