@@ -47,20 +47,40 @@ def ewm_mean(input: pd.Series, halflife: float, group=None, weight=None) -> pd.S
 
 
 if __name__ == '__main__':
-    returns = pd.Series([0.01, 0.02, -0.01, 0.03, 0.05], name='return')
-    result_no_weight = ewm_mean(returns, halflife=2)
-    print('result without weight')
-    print(result_no_weight)
 
-    returns_na = pd.Series([0.01, 0.02, -0.01, 0.03, np.nan, np.nan, np.nan, 0.05], name='return')
-    result_na = ewm_mean(returns_na, halflife=2)
-    print('result with na')
-    print(result_na)
+    # normal
+    ret = pd.Series([-0.05, 0.00, 0.05, 0.10, 0.15], name='return', dtype='float64')
+    out1 = ewm_mean(ret, halflife=2, group=None, weight=None)
+    print('out1')
+    print(out1)
 
-    weights = [1,2,1,1,3]
-    result_with_weight = ewm_mean(returns, halflife=2, weight=weights)
-    print('result with weight')
-    print(result_with_weight)
+    # with na
+    ret_nan = pd.Series([-0.05, 0.00, 0.05, np.nan, 0.15], name='return', dtype='float64')
+    out2 = ewm_mean(ret_nan, halflife=2, group=None, weight=None)
+    print('out2')
+    print(out2)
 
+    # with weight
+    ret_w = pd.Series([-0.05, 0.00, 0.05, 0.10, 0.15], name='return', dtype='float64')
+    w = pd.Series([1.0, 2.0, 10.0, 1.0, 1.0], index=ret_w.index, dtype='float64')
+    out3 = ewm_mean(ret_w, halflife=2, group=None, weight=None)
+    print('out3')
+    print(out3)
 
+    # If group input is a series, group based on that
+    stock_id = pd.Series(['A','A','A','B','A'])
+    ret_g = pd.Series([-0.05, 0.00, 0.05, 0.10, 0.15], dtype='float64')
+    w_g = pd.Series([1.0, 0.5, 2.0, 0.0, 1.0], dtype='float64')
+    out4 = ewm_mean(ret_g, halflife=2, group=stock_id, weight=w_g)
+    print('out4')
+    print(out4)
+
+    # If group input is a string, group based on that index level
+    idx = pd.MultiIndex.from_product([["A", "B"], pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])],
+    names=["stock", "ts"])
+    ret_mi = pd.Series([-0.05, 0.00, 0.05, 0.10, 0.15, 0.10], index=idx, dtype="float64")
+    w_mi = pd.Series([1.0, 0.5, 2.0, 0.0, 1.0, 2.0], index=idx, dtype="float64")
+    out5 = ewm_mean(ret_mi, halflife=2, group='stock', weight=w_mi)
+    print('out5')
+    print(out5)
 
