@@ -18,19 +18,33 @@ def ewm_mean(input: pd.Series, halflife: float, group=None, weight=None) -> pd.S
     # if group is a scalar, it should match one of the level of index name
     # if group is a Series, it should match input length and result will group on that
     if group is None:
-        g_arr = np.ones(len(input.index))
+        g_codes = np.zeros(len(x), dtype=np.int64)
+        n_groups = 1
     elif np.isscalar(group):
         if group not in input.index.names:
-            raise ValueError('If group is a scalar it has to be one of the index name')
+            raise ValueError('If "group" is a scalar it has to be a valid index name')
+        g_vals = input.index.get_level_values(group)
+        codes, uniques = pd.factorize(g_vals, sort=False)
+        if (codes == -1).any():
+            codes = codes.copy()
+            codes[codes == -1] = len(uniques)
+            n_groups = len(uniques) + 1
         else:
-            g_arr = input.index.get_level_values(group).to_numpy(copy=False)
+            n_groups = len(uniques)
+        g_codes = codes.astype(np.int64, copy=False)
     elif isinstance(group, pd.Series):
-        if len(group) != len(input.index):
-            raise ValueError('If "Group" is a Series, it needs to be the same length as input')
+        if len(group) != len(x):
+            raise ValueError('If "group" is a Series, it needs to be the same length as input')
+        codes, uniques = pd.factorize(group, sort=False)
+        if (codes == -1).any():
+            codes = codes.copy()
+            codes[codes == -1] = len(uniques)
+            n_groups = len(uniques) + 1
         else:
-            g_arr = group.to_numpy(copy=False)
+            n_groups = len(uniques)
+        g_codes = codes.astype(np.int64, copy=False)
     else:
-        raise TypeError('"group" must be a pandas Series or a scalar')
+        raise TypeError('"group" must be a Series or scalar')
 
     # if there's no weight, we set it as 1, 1, 1, ...
     if weight is None:
@@ -45,17 +59,18 @@ def ewm_mean(input: pd.Series, halflife: float, group=None, weight=None) -> pd.S
 
     alpha = 1.0 - np.exp(-np.log(2.0) / halflife)
 
-    s_dict = defaultdict(float)
-    w_dict = defaultdict(float)
+    s_acc = np.zeros(n_groups, dtype=np.float64)
+    w_acc = np.zeros(n_groups, dtype=np.float64)
+
     out = np.empty(len(x), dtype=np.float64)
 
     for i in range(len(x)):
         xi = x[i]
-        gi = g_arr[i]
+        gi = g_codes[i]
         wi = w_arr[i]
 
-        s_prev = s_dict[gi]
-        w_prev = w_dict[gi]
+        s_prev = s_acc[gi]
+        w_prev = w_acc[gi]
 
         if np.isnan(xi) or wi == 0.0:  # if weight is 0, it is the same as input as N/A, skip that row
             s_now = s_prev * (1.0 - alpha)
@@ -64,8 +79,8 @@ def ewm_mean(input: pd.Series, halflife: float, group=None, weight=None) -> pd.S
             s_now = alpha * wi * xi + (1 - alpha) * s_prev
             w_now = alpha * wi + (1 - alpha) * w_prev
 
-        s_dict[gi] = s_now
-        w_dict[gi] = w_now
+        s_acc[gi] = s_now
+        w_acc[gi] = w_now
 
         out[i] = (s_now / w_now) if w_now != 0.0 else np.nan
 
