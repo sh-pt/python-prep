@@ -1,15 +1,25 @@
-# 0.1 first try
-# Simplest version, no Cython, no Group, only take in data, halflife, weight, and return ewm
-
 import pandas as pd
 import numpy as np
-from collections import defaultdict
 
 
-def ewm_mean(input: pd.Series, halflife: float, group=None, weight=None) -> pd.Series:
-    if not isinstance(input, pd.Series):
-        raise TypeError('"Input" must be a pandas Series')
+def ewm_mean(input, halflife: float, group=None, weight=None): # aggregated func, return depends on input type
+    if isinstance(input, pd.Series):
+        return ewm_mean_series(input, halflife, group, weight)
+    elif isinstance(input, pd.DataFrame):
+        return ewm_mean_df(input, halflife, group, weight)
+    else:
+        raise ValueError('Input must be either a Pandas Series or a Pandas DataFrame')
 
+
+def ewm_mean_df(input: pd.DataFrame, halflife: float, group=None, weight=None) -> pd.DataFrame:
+    out_cols = {}
+    for col in input.columns:
+        s = input[col].astype(np.float64, copy=False)
+        out_cols[col] = ewm_mean_series(s, halflife, group, weight)
+    return pd.DataFrame(out_cols, index=input.index, columns=input.columns)
+
+
+def ewm_mean_series(input: pd.Series, halflife: float, group=None, weight=None) -> pd.Series:
     x = input.to_numpy(dtype=np.float64, copy=False)
 
     if not np.isscalar(halflife) or halflife <= 0:
@@ -123,3 +133,12 @@ if __name__ == '__main__':
     out5 = ewm_mean(ret_mi, halflife=2, group='stock', weight=w_mi)
     print('out5')
     print(out5)
+
+    # If input is a dataframe
+    idx = pd.MultiIndex.from_product([["A", "B"], pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])],
+                                     names=["stock", "ts"])
+    input_df = pd.DataFrame(np.random.randn(6,2), index=idx, columns=['ret', 'chg'], dtype='float64')
+    w_df = pd.Series([1.0, 0.5, 2.0, 0.0, 1.0, 2.0], index=idx, dtype="float64")
+    out6 = ewm_mean(input_df, halflife=2, group='stock', weight=w_df)
+    print('out6')
+    print(out6)
