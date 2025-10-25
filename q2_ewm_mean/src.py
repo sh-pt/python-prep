@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from ewmcore._ewm_fast import ewm_kernel  # CHANGE: import compiled kernel
 
 
 def ewm_mean(input, halflife: float, group=None, weight=None): # aggregated func, return depends on input type
@@ -69,6 +70,14 @@ def ewm_mean_series(input: pd.Series, halflife: float, group=None, weight=None) 
 
     alpha = 1.0 - np.exp(-np.log(2.0) / halflife)
 
+    # new part, for Cython
+    x_c = np.ascontiguousarray(x, dtype=np.float64)
+    w_c = np.ascontiguousarray(w_arr, dtype=np.float64)
+    g_c = np.ascontiguousarray(g_codes, dtype=np.int64)
+    out = ewm_kernel(x_c, w_c, g_c, float(alpha), int(n_groups))
+
+
+    '''
     s_acc = np.zeros(n_groups, dtype=np.float64)
     w_acc = np.zeros(n_groups, dtype=np.float64)
 
@@ -93,6 +102,7 @@ def ewm_mean_series(input: pd.Series, halflife: float, group=None, weight=None) 
         w_acc[gi] = w_now
 
         out[i] = (s_now / w_now) if w_now != 0.0 else np.nan
+    '''
 
     return pd.Series(out, index=input.index, name=f'{input.name}_ewm_mean')
 
