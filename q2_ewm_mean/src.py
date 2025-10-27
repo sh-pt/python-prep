@@ -76,7 +76,6 @@ def ewm_mean_series(input: pd.Series, halflife: float, group=None, weight=None) 
     g_c = np.ascontiguousarray(g_codes, dtype=np.int64)
     out = ewm_kernel(x_c, w_c, g_c, float(alpha), int(n_groups))
 
-
     '''
     s_acc = np.zeros(n_groups, dtype=np.float64)
     w_acc = np.zeros(n_groups, dtype=np.float64)
