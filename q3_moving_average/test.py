@@ -1,7 +1,7 @@
 import random
 from src import Stream
 
-windows = [5, 10, 20]
+windows = [5, 1_000, 15_000]
 t = 0
 data = []
 

@@ -1,0 +1,70 @@
+records overwrite every time
+
+Function: Stream.add at line 22
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    22                                               @profile
+    23                                               def add(self, time, price):
+    24
+    25    200000     136460.9      0.7      3.6          self.records.append([time, price])
+    26
+    27    800000     320293.7      0.4      8.4          for i in range(len(self.windows)):
+    28    600000     234115.7      0.4      6.1              self.cnt[i] += 1
+    29    600000     229303.0      0.4      6.0              self.acc[i] += price
+    30
+    31    800000     304387.2      0.4      8.0          for i in range(len(self.windows)):
+    32   1198960     533256.0      0.4     14.0              while self.records[self.header[i]][0] < time - self.windows[i]:
+    33    598960     246346.3      0.4      6.5                  self.acc[i] -= self.records[self.header[i]][1]
+    34    598960     230031.8      0.4      6.0                  self.cnt[i] -= 1
+    35    598960     225732.5      0.4      5.9                  self.header[i] += 1
+    36
+    37    200000     111943.9      0.6      2.9          first_header = min(self.header)
+    38    200000     444251.2      2.2     11.6          self.records = self.records[first_header:]
+    39
+    40    800000     309436.3      0.4      8.1          for i in range(len(self.windows)):
+    41    600000     231638.6      0.4      6.1              self.header[i] -= first_header
+    42
+    43    200000     260926.4      1.3      6.8          return [self.acc[i] / self.cnt[i] for i in range(len(self.cnt))]
+
+vs. adding a threadhold to trigger the overwrite
+
+Function: Stream.add at line 22
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    22                                               @profile
+    23                                               def add(self, time, price):
+    24
+    25    200000      78584.4      0.4      2.1          records = self.records
+    26    200000      71663.2      0.4      1.9          header = self.header
+    27    200000      70580.6      0.4      1.8          acc = self.acc
+    28    200000      71791.6      0.4      1.9          cnt = self.cnt
+    29    200000      68943.9      0.3      1.8          windows = self.windows
+    30    200000      77761.8      0.4      2.0          nw = len(windows)
+    31
+    32    200000      82505.4      0.4      2.2          records.append([time, price])
+    33
+    34    800000     308071.6      0.4      8.0          for i in range(nw):
+    35    600000     234016.6      0.4      6.1              cnt[i] += 1
+    36    600000     226883.8      0.4      5.9              acc[i] += price
+    37
+    38    200000      78786.1      0.4      2.1          nrec = len(records)
+    39
+    40    800000     305327.9      0.4      8.0          for i in range(nw):
+    41    600000     229428.6      0.4      6.0              cutoff = time - windows[i]
+    42    600000     208063.0      0.3      5.4              idx = header[i]
+    43   1198998     473115.9      0.4     12.4              while idx < nrec and records[idx][0] < cutoff:
+    44    598998     232244.2      0.4      6.1                  acc[i] -= records[idx][1]
+    45    598998     226148.3      0.4      5.9                  cnt[i] -= 1
+    46    598998     217629.8      0.4      5.7                  idx += 1
+    47    600000     218477.9      0.4      5.7              header[i] = idx
+    48
+    49    200000      74298.9      0.4      1.9          if nrec >= 50_000:
+    50         4         16.4      4.1      0.0              first_header = min(header)
+    51         4         33.0      8.2      0.0              new_records = records[first_header:]
+    52        16          7.0      0.4      0.0              for i in range(nw):
+    53        12          5.2      0.4      0.0                  header[i] -= first_header
+    54         4          4.3      1.1      0.0              self.records = new_records
+    55
+    56    200000     275903.1      1.4      7.2          return [(acc[i] / cnt[i]) if cnt[i] else float('nan') for i in range(nw)]

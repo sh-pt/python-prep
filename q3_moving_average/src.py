@@ -22,25 +22,38 @@ class Stream:
     @profile
     def add(self, time, price):
 
-        self.records.append([time, price])
+        records = self.records
+        header = self.header
+        acc = self.acc
+        cnt = self.cnt
+        windows = self.windows
+        nw = len(windows)
 
-        for i in range(len(self.windows)):
-            self.cnt[i] += 1
-            self.acc[i] += price
+        records.append([time, price])
 
-        for i in range(len(self.windows)):
-            while self.records[self.header[i]][0] < time - self.windows[i]:
-                self.acc[i] -= self.records[self.header[i]][1]
-                self.cnt[i] -= 1
-                self.header[i] += 1
+        for i in range(nw):
+            cnt[i] += 1
+            acc[i] += price
 
-        first_header = min(self.header)
-        self.records = self.records[first_header:]
+        nrec = len(records)
 
-        for i in range(len(self.windows)):
-            self.header[i] -= first_header
+        for i in range(nw):
+            cutoff = time - windows[i]
+            idx = header[i]
+            while idx < nrec and records[idx][0] < cutoff:
+                acc[i] -= records[idx][1]
+                cnt[i] -= 1
+                idx += 1
+            header[i] = idx
 
-        return [self.acc[i] / self.cnt[i] for i in range(len(self.cnt))]
+        if nrec >= 50_000:
+            first_header = min(header)
+            new_records = records[first_header:]
+            for i in range(nw):
+                header[i] -= first_header
+            self.records = new_records
+
+        return [(acc[i] / cnt[i]) if cnt[i] else float('nan') for i in range(nw)]
 
 
 if __name__ == '__main__':
