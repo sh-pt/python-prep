@@ -5,6 +5,12 @@
 # import numpy as np
 # from collections import deque
 
+try:
+    profile
+except NameError:
+    def profile(func):
+        return func
+
 class Stream:
     def __init__(self, windows:list):
         self.windows = windows
@@ -13,6 +19,7 @@ class Stream:
         self.records = []
         self.header = [0] * len(windows)
 
+    @profile
     def add(self, time, price):
 
         self.records.append([time, price])
@@ -57,6 +64,7 @@ if __name__ == '__main__':
     Stream = Stream(windows = windows)
     for d in data:
         print(Stream.add(*d))
+
 
 
 
