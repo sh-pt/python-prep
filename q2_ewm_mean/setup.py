@@ -8,6 +8,7 @@ exts = [
         sources=["src/ewmcore/_ewm_fast.pyx"],
         include_dirs=[np.get_include()],
         extra_compile_args=["-O3"],
+        define_macros=[("CYTHON_TRACE", "1")]
     )
 ]
 
@@ -21,6 +22,9 @@ setup(
             "initializedcheck": False,
             "nonecheck": False,
             "cdivision": True,
+            "linetrace": True,
+            "profile": True,
+            "binding": True,
         },
     ),
     package_dir={"": "src"},

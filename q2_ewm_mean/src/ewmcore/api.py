@@ -1,7 +1,14 @@
+try:
+    profile
+except NameError:
+    def profile(func):
+        return func
+
 import pandas as pd
 import numpy as np
 from ._ewm_fast import ewm_kernel
 
+@profile
 def ewm_mean(input, halflife: float, group=None, weight=None):
     if isinstance(input, pd.Series):
         return ewm_mean_series(input, halflife, group, weight)
@@ -10,6 +17,7 @@ def ewm_mean(input, halflife: float, group=None, weight=None):
     else:
         raise ValueError('Input must be either a Pandas Series or a Pandas DataFrame')
 
+@profile
 def ewm_mean_df(input: pd.DataFrame, halflife: float, group=None, weight=None) -> pd.DataFrame:
     out_cols = {}
     for col in input.columns:
@@ -17,6 +25,7 @@ def ewm_mean_df(input: pd.DataFrame, halflife: float, group=None, weight=None) -
         out_cols[col] = ewm_mean_series(s, halflife, group, weight)
     return pd.DataFrame(out_cols, index=input.index, columns=input.columns)
 
+@profile
 def ewm_mean_series(input: pd.Series, halflife: float, group=None, weight=None) -> pd.Series:
     x = input.to_numpy(dtype=np.float64, copy=False)
 
