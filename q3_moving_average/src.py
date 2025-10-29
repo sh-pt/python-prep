@@ -4,6 +4,7 @@
 
 # import numpy as np
 # from collections import deque
+from stream_core import update_windows
 
 try:
     profile
@@ -37,14 +38,16 @@ class Stream:
 
         nrec = len(records)
 
-        for i in range(nw):
-            cutoff = time - windows[i]
-            idx = header[i]
-            while idx < nrec and records[idx][0] < cutoff:
-                acc[i] -= records[idx][1]
-                cnt[i] -= 1
-                idx += 1
-            header[i] = idx
+        # for i in range(nw):
+        #     cutoff = time - windows[i]
+        #     idx = header[i]
+        #     while idx < nrec and records[idx][0] < cutoff:
+        #         acc[i] -= records[idx][1]
+        #         cnt[i] -= 1
+        #         idx += 1
+        #     header[i] = idx
+
+        update_windows(records, header, acc, cnt, windows, time)
 
         if nrec >= 50_000:
             first_header = min(header)
