@@ -1,5 +1,11 @@
 import numpy as np, pandas as pd
-from ewmcore import ewm_mean
+from src import ewm_mean
+
+try:
+    profile
+except NameError:
+    def profile(func):
+        return func
 
 def make_data(n=1_000_000, n_groups=500, nan_ratio=0.05, seed=0, weighted=True):
     rng = np.random.default_rng(seed)
@@ -12,15 +18,17 @@ def make_data(n=1_000_000, n_groups=500, nan_ratio=0.05, seed=0, weighted=True):
 
     perm = rng.permutation(n)
     x, g = x.iloc[perm], g.iloc[perm]
-    if w is not None: w = w.iloc[perm]
+    if w is not None:
+        w = w.iloc[perm]
 
     s = pd.DataFrame({"x": x, "grp": g}).set_index("grp", append=True)["x"]
     return s, w
 
+@profile
 def run_once():
     s, w = make_data()
-
     ewm_mean(s, halflife=120.0, group="grp", weight=w)
+
 
 if __name__ == "__main__":
     run_once()

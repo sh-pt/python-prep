@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from ewmcore._ewm_fast import ewm_kernel  # CHANGE: import compiled kernel
+import ewm_fast
 
 
 def ewm_mean(input, halflife: float, group=None, weight=None): # aggregated func, return depends on input type
@@ -74,7 +74,7 @@ def ewm_mean_series(input: pd.Series, halflife: float, group=None, weight=None) 
     x_c = np.ascontiguousarray(x, dtype=np.float64)
     w_c = np.ascontiguousarray(w_arr, dtype=np.float64)
     g_c = np.ascontiguousarray(g_codes, dtype=np.int64)
-    out = ewm_kernel(x_c, w_c, g_c, float(alpha), int(n_groups))
+    out = ewm_fast.ewm_kernel(x_c, w_c, g_c, float(alpha), int(n_groups))
 
     '''
     s_acc = np.zeros(n_groups, dtype=np.float64)
