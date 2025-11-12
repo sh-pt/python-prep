@@ -1,4 +1,3 @@
-import test_src
 import pandas as pd
 import numpy as np
 import pandas.testing as tm

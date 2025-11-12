@@ -2,8 +2,9 @@
 # cython: language_level=3
 # cython: boundscheck=False
 # cython: wraparound=False
+# cython: cdivision=True
 
-import numpy as np
+import numpy as up
 cimport numpy as cnp
 from libc.math cimport isnan, NAN
 
@@ -16,18 +17,17 @@ cpdef ewm_kernel(
     cnp.ndarray[int64_t,   ndim=1, mode="c"] g_codes,
     double alpha,
     long n_groups,
+    cnp.ndarray[float64_t, ndim=1] s_acc,
+    cnp.ndarray[float64_t, ndim=1] w_acc,
+    cnp.ndarray[float64_t, ndim=1] out
 ):
 
     cdef Py_ssize_t n = x.shape[0]
-    cdef cnp.ndarray[float64_t, ndim=1] s_acc = np.zeros(n_groups, dtype=np.float64)
-    cdef cnp.ndarray[float64_t, ndim=1] w_acc = np.zeros(n_groups, dtype=np.float64)
-    cdef cnp.ndarray[float64_t, ndim=1] out   = np.empty(n,        dtype=np.float64)
 
     cdef Py_ssize_t i
     cdef double xi, wi, s_prev, w_prev, s_now, w_now
     cdef long gi
 
-    # following loop doesn't need to interact with python so it can drop the gil for next thread to pick up
     with nogil:
         for i in range(n):
             xi = x[i]
@@ -51,5 +51,3 @@ cpdef ewm_kernel(
                 out[i] = s_now / w_now
             else:
                 out[i] = NAN
-
-    return out
