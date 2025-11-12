@@ -5,7 +5,7 @@
 
 import numpy as np
 cimport numpy as cnp
-from libc.math cimport isnan
+from libc.math cimport isnan, NAN
 
 ctypedef cnp.float64_t float64_t
 ctypedef cnp.int64_t   int64_t
@@ -27,27 +27,29 @@ cpdef ewm_kernel(
     cdef double xi, wi, s_prev, w_prev, s_now, w_now
     cdef long gi
 
-    for i in range(n):
-        xi = x[i]
-        wi = w_arr[i]
-        gi = g_codes[i]
+    # following loop doesn't need to interact with python so it can drop the gil for next thread to pick up
+    with nogil:
+        for i in range(n):
+            xi = x[i]
+            wi = w_arr[i]
+            gi = g_codes[i]
 
-        s_prev = s_acc[gi]
-        w_prev = w_acc[gi]
+            s_prev = s_acc[gi]
+            w_prev = w_acc[gi]
 
-        if isnan(xi) or wi == 0.0:
-            s_now = s_prev * (1.0 - alpha)
-            w_now = w_prev * (1.0 - alpha)
-        else:
-            s_now = alpha * wi * xi + (1.0 - alpha) * s_prev
-            w_now = alpha * wi      + (1.0 - alpha) * w_prev
+            if isnan(xi) or wi == 0.0:
+                s_now = s_prev * (1.0 - alpha)
+                w_now = w_prev * (1.0 - alpha)
+            else:
+                s_now = alpha * wi * xi + (1.0 - alpha) * s_prev
+                w_now = alpha * wi      + (1.0 - alpha) * w_prev
 
-        s_acc[gi] = s_now
-        w_acc[gi] = w_now
+            s_acc[gi] = s_now
+            w_acc[gi] = w_now
 
-        if w_now != 0.0:
-            out[i] = s_now / w_now
-        else:
-            out[i] = np.nan
+            if w_now != 0.0:
+                out[i] = s_now / w_now
+            else:
+                out[i] = NAN
 
     return out
