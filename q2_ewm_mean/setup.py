@@ -14,6 +14,7 @@ exts = [
 setup(
     name="q2_ewm_mean",
     version="0.0.1",
+    py_modules=["src"],
     ext_modules=cythonize(
         exts,
         language_level="3",

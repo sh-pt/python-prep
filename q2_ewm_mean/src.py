@@ -4,6 +4,53 @@ import ewm_fast
 import concurrent.futures
 
 
+def _get_args(input_len, halflife, group_data, weight):
+
+    if not np.isscalar(halflife) or halflife <= 0:
+        raise ValueError('"halflife" must be a positive float')
+
+    # 1. Process Group
+    if group_data is None:
+        g_codes = np.zeros(input_len, dtype=np.int64)
+        n_groups = 1
+    else:
+        if not isinstance(group_data, (pd.Series, pd.Index)):
+            raise TypeError(f"Internal error: _get_args expected a Series")
+
+        if len(group_data) != input_len:
+            raise ValueError('If "group" is a Series, it needs to be the same length as input')
+
+        codes, uniques = pd.factorize(group_data)
+        if (codes == -1).any():
+            codes = codes.copy()
+            codes[codes == -1] = len(uniques)
+            n_groups = len(uniques) + 1
+        else:
+            n_groups = len(uniques)
+
+        g_codes = codes.astype(np.int64, copy=False)
+
+    # 2. Process Weight
+    if weight is None:
+        w_arr = np.ones(input_len, dtype=np.float64)
+    else:
+        w_arr = weight.to_numpy(dtype=np.float64, copy=False)
+        if len(w_arr) != input_len:
+            raise ValueError('"weight" must have the same length as "input"')
+        if (w_arr < 0).any():
+            raise ValueError('"weight" must have non-negative values')
+        w_arr = np.where(np.isnan(w_arr), 0.0, w_arr)  # skip the na weights
+
+    # 3. Process Alpha
+    alpha = 1.0 - np.exp(-np.log(2.0) / halflife)
+
+    # 4. Ensure C-Contiguous
+    w_c = np.ascontiguousarray(w_arr, dtype=np.float64)
+    g_c = np.ascontiguousarray(g_codes, dtype=np.int64)
+
+    return w_c, g_c, float(alpha), int(n_groups)
+
+
 # aggregated func, calls "ewm_mean_df" or "ewm_mean_series" based on the input
 def ewm_mean(input, halflife: float, group=None, weight=None):
 
@@ -17,78 +64,48 @@ def ewm_mean(input, halflife: float, group=None, weight=None):
 
 def ewm_mean_df(input: pd.DataFrame, halflife: float, group=None, weight=None) -> pd.DataFrame:
 
+    if np.isscalar(group) and group in input.index.names:
+        group_data = input.index.get_level_values(group)
+    else:
+        group_data = group
+
+    w_c, g_c, alpha, n_groups = _get_args(len(input), halflife, group_data, weight)
+
+    out_cols_data = {col: np.empty(len(input), dtype=np.float64) for col in input.columns}
+
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {}
+        futures = []
         for col in input.columns:
-            s = input[col].astype(np.float64, copy=False)
-            futures[col] = executor.submit(ewm_mean_series, s, halflife, group, weight)
+            s = input[col].to_numpy(dtype=np.float64, copy=False)
+            x_c = np.ascontiguousarray(s, dtype=np.float64)
 
-        out_cols = {}
-        for col in input.columns:
-            out_cols[col] = futures[col].result()
+            out = out_cols_data[col]
 
-    return pd.DataFrame(out_cols, index=input.index, columns=input.columns)
+            futures.append(
+                executor.submit(
+                    ewm_fast.ewm_kernel, x_c, w_c, g_c, alpha, n_groups, out
+                )
+            )
+
+        for f in futures:
+            f.result()
+
+    return pd.DataFrame(out_cols_data, index=input.index, columns=input.columns)
 
 
 def ewm_mean_series(input: pd.Series, halflife: float, group=None, weight=None) -> pd.Series:
+
+    if np.isscalar(group) and group in input.index.names:
+        group_data = input.index.get_level_values(group)
+    else:
+        group_data = group
+
+    w_c, g_c, alpha, n_groups = _get_args(len(input), halflife, group_data, weight)
+
     x = input.to_numpy(dtype=np.float64, copy=False)
-
-    if not np.isscalar(halflife) or halflife <= 0:
-        raise ValueError('"halflife" must be a positive float')
-
-    # if group is a scalar, it should match one of the level of index name
-    # if group is a Series, it should match input length and result will group on that
-    if group is None:
-        g_codes = np.zeros(len(x), dtype=np.int64)
-        n_groups = 1
-
-    # clean up the group input, get "group_data"
-    else:
-        if np.isscalar(group):
-            if group not in input.index.names:
-                raise ValueError('If "group" is a scalar it has to be a valid index name')
-            group_data = input.index.get_level_values(group)
-        elif isinstance(group, pd.Series):
-            if len(group) != len(x):
-                raise ValueError('If "group" is a Series, it needs to be the same length as input')
-            group_data = group
-        else:
-            raise TypeError('"group" must be a Series or scalar')
-
-        # factorize "group_data"
-        codes, uniques = pd.factorize(group_data)
-
-        # Handle NaNs, factorize will return -1
-        if (codes == -1).any():
-            codes = codes.copy()
-            codes[codes == -1] = len(uniques)
-            n_groups = len(uniques) + 1
-        else:
-            n_groups = len(uniques)
-
-        g_codes = codes.astype(np.int64, copy=False)
-
-    # if there's no weight, we set it as 1, 1, 1, ...
-    if weight is None:
-        w_arr = np.ones(len(input), dtype=np.float64)
-    else:
-        w_arr = weight.to_numpy(dtype=np.float64, copy=False)
-        if len(w_arr) != len(input):
-            raise ValueError('"weight" must have the same length as "input"')
-        if (w_arr < 0).any():
-            raise ValueError('"weight" must have non-negative values')
-        w_arr = np.where(np.isnan(w_arr), 0.0, w_arr) # skip the na weights
-
-    alpha = 1.0 - np.exp(-np.log(2.0) / halflife)
-
-    s_acc = np.zeros(n_groups, dtype=np.float64)
-    w_acc = np.zeros(n_groups, dtype=np.float64)
+    x_c = np.ascontiguousarray(x, dtype=np.float64)
     out = np.empty(len(x), dtype=np.float64)
 
-    x_c = np.ascontiguousarray(x, dtype=np.float64)
-    w_c = np.ascontiguousarray(w_arr, dtype=np.float64)
-    g_c = np.ascontiguousarray(g_codes, dtype=np.int64)
-
-    ewm_fast.ewm_kernel(x_c, w_c, g_c, float(alpha), int(n_groups), s_acc, w_acc, out)
+    ewm_fast.ewm_kernel(x_c, w_c, g_c, alpha, n_groups, out)
 
     return pd.Series(out, index=input.index, name=f'{input.name}_ewm_mean')
